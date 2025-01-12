@@ -7,12 +7,18 @@ int lastTime;  // Tracks the time of the previous frame
 
 void setup() {
   fullScreen();
-  f = createFont("Times-Roman", 24);
+  f = createFont("TimesNewRomanPSMT", 24);
   textFont(f);
   cx = width / 2;
   cy = height / 2;
   secondsRadius = 150;
   lastTime = millis();  // Initialize the lastTime variable
+  
+//  String[] fonts = PFont.list();
+//for (String font : fonts) {
+//    println(font);
+//}
+
 }
 
 void draw() {

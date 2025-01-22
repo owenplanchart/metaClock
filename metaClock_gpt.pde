@@ -1,4 +1,5 @@
 import processing.serial.*;
+import processing.sound.*;
 
 Serial myPort;  // Serial port for Arduino
 int cx, cy;
@@ -7,6 +8,8 @@ PFont f;
 float baseSecond = 0;  // Tracks the current second with speed adjustments
 float speedMultiplier = 1;  // Speed factor from the distance sensor
 int lastTime;  // Tracks the time of the previous frame
+int lastSecond = 0; // Tracks the last integer second for sound triggering
+SoundFile tickSound; // Sound file for the clock tick
 
 void setup() {
   fullScreen();
@@ -18,9 +21,12 @@ void setup() {
   lastTime = millis();  // Initialize the lastTime variable
 
   // Initialize the serial port
-  String portName = "/dev/cu.usbserial-01D17D99";// Use the first available serial port (adjust if necessary)
+  String portName = "/dev/cu.usbserial-01D17D99"; // Use the first available serial port (adjust if necessary)
   myPort = new Serial(this, portName, 9600); // Adjust baud rate to match Arduino
   println(join(Serial.list(), ", "));
+  
+  // Load the clock tick sound
+  tickSound = new SoundFile(this, "ClockTick.wav");
 }
 
 void draw() {
@@ -37,8 +43,7 @@ void draw() {
           // Map distance to speedMultiplier (e.g., closer = faster)
           speedMultiplier = map(distance, 100, 2000, 5, 0.5); // Adjust range as needed
           speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
@@ -53,6 +58,13 @@ void draw() {
   // Update the baseSecond value based on the speed multiplier
   baseSecond += speedMultiplier * deltaTime;
   baseSecond %= 60; // Keep seconds within the range [0, 60)
+
+  // Trigger sound when the second hand moves a full unit
+  int currentSecond = floor(baseSecond);
+  if (currentSecond != lastSecond) {
+    tickSound.play(); // Play the tick sound
+    lastSecond = currentSecond;
+  }
 
   translate(cx, cy);
   scale(2.5);

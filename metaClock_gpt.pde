@@ -30,7 +30,8 @@ void setup() {
     myPort = new Serial(this, portName, 9600); // Adjust baud rate to match Arduino
     mouseControl = false; // Switch to sensor control if the serial port is successfully opened
     println("Sensor connected. Using sensor control.");
-  } catch (Exception e) {
+  }
+  catch (Exception e) {
     println("Sensor not connected. Defaulting to mouse control.");
     mouseControl = true; // Default to mouse control if sensor connection fails
   }
@@ -50,7 +51,8 @@ void draw() {
           // Map distance to speedMultiplier (e.g., closer = faster)
           speedMultiplier = map(distance, 100, 2000, 5, 0.5); // Adjust range as needed
           speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
@@ -58,8 +60,10 @@ void draw() {
   }
 
   // If mouse control is active, map mouseX to speedMultiplier
+
   if (mouseControl) {
-    speedMultiplier = map(mouseX, 0, width, 1, 5); // Adjust range as needed
+    // Invert the mapping: left side (0) = faster, right side (width) = slower
+    speedMultiplier = map(mouseX, 0, width, 5, 0.5); // Inverted range
     speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
   }
 
@@ -128,5 +132,3 @@ void keyPressed() {
     println("Mode switched to: " + (mouseControl ? "Mouse Control" : "Sensor Control"));
   }
 }
-
- 

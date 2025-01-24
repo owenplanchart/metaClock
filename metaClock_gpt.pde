@@ -103,9 +103,11 @@ void draw() {
   }
 
   // Draw the original seconds hand as a line
+  // Draw the original seconds hand as a shorter line
   stroke(255);
   strokeWeight(8);
-  line(0, 0, cos(s) * secondsRadius, sin(s) * secondsRadius);
+  float lineRadius = secondsRadius - 4; // Make the line slightly shorter to match the outer circle
+  line(0, 0, cos(s) * lineRadius, sin(s) * lineRadius);
 
   // The Future
   pushMatrix();

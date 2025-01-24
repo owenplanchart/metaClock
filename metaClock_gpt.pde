@@ -6,10 +6,11 @@ int cx, cy;
 float secondsRadius;
 PFont f;
 float baseSecond = 0;  // Tracks the current second with speed adjustments
-float speedMultiplier = 1;  // Speed factor from the distance sensor
+float speedMultiplier = 1;  // Speed factor for the second hand
 int lastTime;  // Tracks the time of the previous frame
 int lastSecond = 0; // Tracks the last integer second for sound triggering
 SoundFile tickSound; // Sound file for the clock tick
+boolean mouseControl = true; // Track whether mouse control is active (default)
 
 void setup() {
   fullScreen();
@@ -20,20 +21,26 @@ void setup() {
   secondsRadius = 150;
   lastTime = millis();  // Initialize the lastTime variable
 
-  // Initialize the serial port
-  String portName = "/dev/cu.usbserial-01D17D99"; // Use the first available serial port (adjust if necessary)
-  myPort = new Serial(this, portName, 9600); // Adjust baud rate to match Arduino
-  println(join(Serial.list(), ", "));
-  
   // Load the clock tick sound
   tickSound = new SoundFile(this, "ClockTick.wav");
+
+  // Attempt to initialize the serial port
+  try {
+    String portName = "/dev/cu.usbserial-01D17D99"; // Replace with the appropriate port
+    myPort = new Serial(this, portName, 9600); // Adjust baud rate to match Arduino
+    mouseControl = false; // Switch to sensor control if the serial port is successfully opened
+    println("Sensor connected. Using sensor control.");
+  } catch (Exception e) {
+    println("Sensor not connected. Defaulting to mouse control.");
+    mouseControl = true; // Default to mouse control if sensor connection fails
+  }
 }
 
 void draw() {
   background(0);
-  
-  // Read data from the serial port
-  if (myPort.available() > 0) {
+
+  // Handle data from the serial port only if sensor control is active and the serial port is initialized
+  if (!mouseControl && myPort != null && myPort.available() > 0) {
     String data = myPort.readStringUntil('\n'); // Read until newline
     if (data != null) {
       data = trim(data); // Remove whitespace
@@ -48,6 +55,12 @@ void draw() {
         }
       }
     }
+  }
+
+  // If mouse control is active, map mouseX to speedMultiplier
+  if (mouseControl) {
+    speedMultiplier = map(mouseX, 0, width, 1, 5); // Adjust range as needed
+    speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
   }
 
   // Calculate deltaTime in seconds
@@ -99,10 +112,21 @@ void draw() {
   text("PAST", 0, 0);
   popMatrix();
 
-  // Display current speed multiplier
+  // Display current speed multiplier and mode
   resetMatrix();
   fill(255);
   textAlign(LEFT);
   textSize(20);
-  text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 40);
+  text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 60);
+  text("Mode: " + (mouseControl ? "Mouse Control" : "Sensor Control"), 10, height - 40);
 }
+
+void keyPressed() {
+  // Toggle between mouse and sensor control when 'm' is pressed
+  if (key == 'm' || key == 'M') {
+    mouseControl = !mouseControl;
+    println("Mode switched to: " + (mouseControl ? "Mouse Control" : "Sensor Control"));
+  }
+}
+
+ 

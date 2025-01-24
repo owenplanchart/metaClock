@@ -51,20 +51,21 @@ void draw() {
           // Map distance to speedMultiplier (e.g., closer = faster)
           speedMultiplier = map(distance, 100, 2000, 5, 0.5); // Adjust range as needed
           speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
     }
   }
 
-  // If mouse control is active, map mouseX to speedMultiplier
-
+  // If mouse control is active, map mouseX to speedMultiplier and slice thickness
+  float sliceAngle = 0; // The angle of the slice (starts as a line)
   if (mouseControl) {
-    // Invert the mapping: left side (0) = faster, right side (width) = slower
     speedMultiplier = map(mouseX, 0, width, 5, 0.5); // Inverted range
     speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
+
+    // Map mouseX to slice angle (0 for a line, up to 45 degrees)
+    sliceAngle = map(mouseX, 0, width, radians(0), radians(45));
   }
 
   // Calculate deltaTime in seconds
@@ -87,22 +88,29 @@ void draw() {
   scale(2.5);
   rotate(-HALF_PI);
 
-  stroke(255);
-
   // Map seconds to angles
   float s = map(baseSecond, 0, 60, 0, TWO_PI);
   float futureS = map((baseSecond + 4) % 60, 0, 60, 0, TWO_PI);
   float pastS = map((baseSecond - 4 + 60) % 60, 0, 60, 0, TWO_PI); // Ensure pastS stays positive
 
-  // The seconds hand
-  pushMatrix();
+  // Draw the expanding pie slice
+  float arcStart = s - sliceAngle / 2; // Start angle of the slice
+  float arcEnd = s + sliceAngle / 2;   // End angle of the slice
+  if (sliceAngle > 0) {
+    fill(255); // Solid white color for the slice
+    noStroke();
+    arc(0, 0, secondsRadius * 2, secondsRadius * 2, arcStart, arcEnd, PIE);
+  }
+
+  // Draw the original seconds hand as a line
+  stroke(255);
   strokeWeight(8);
   line(0, 0, cos(s) * secondsRadius, sin(s) * secondsRadius);
-  popMatrix();
 
   // The Future
   pushMatrix();
   textAlign(CENTER);
+  fill(255); // Make sure text is fully visible
   translate(cos(futureS) * secondsRadius, sin(futureS) * secondsRadius);
   rotate(HALF_PI);
   text("FUTURE", 0, 0);
@@ -111,6 +119,7 @@ void draw() {
   // The Past
   pushMatrix();
   textAlign(CENTER);
+  fill(255); // Make sure text is fully visible
   translate(cos(pastS) * secondsRadius, sin(pastS) * secondsRadius);
   rotate(HALF_PI);
   text("PAST", 0, 0);
@@ -124,6 +133,8 @@ void draw() {
   text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 60);
   text("Mode: " + (mouseControl ? "Mouse Control" : "Sensor Control"), 10, height - 40);
 }
+
+
 
 void keyPressed() {
   // Toggle between mouse and sensor control when 'm' is pressed

@@ -51,7 +51,8 @@ void draw() {
           // Map distance to speedMultiplier (e.g., closer = faster)
           speedMultiplier = map(distance, 100, 2000, 5, 0.5); // Adjust range as needed
           speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
@@ -90,8 +91,12 @@ void draw() {
 
   // Map seconds to angles
   float s = map(baseSecond, 0, 60, 0, TWO_PI);
-  float futureS = map((baseSecond + 4) % 60, 0, 60, 0, TWO_PI);
-  float pastS = map((baseSecond - 4 + 60) % 60, 0, 60, 0, TWO_PI); // Ensure pastS stays positive
+ // Adjust future and past angles based on mouse position
+  float futureOffset = map(mouseX, 0, width, 4, 8); // Varies between +4 and +8
+  float pastOffset = map(mouseX, 0, width, -4, -6); // Varies between -6 and -4
+
+  float futureS = map((baseSecond + futureOffset + 60) % 60, 0, 60, 0, TWO_PI); // Ensure valid range
+  float pastS = map((baseSecond + pastOffset + 60) % 60, 0, 60, 0, TWO_PI);   // Ensure valid range
 
   // Draw the expanding pie slice
   float arcStart = s - sliceAngle / 2; // Start angle of the slice
@@ -124,7 +129,7 @@ void draw() {
   // Draw the original seconds hand as a line
   stroke(255);
   strokeWeight(8);
-  line(0, 0, cos(s) * (secondsRadius - 8), sin(s) * (secondsRadius - 8));
+  line(0, 0, cos(s) * (secondsRadius - 4), sin(s) * (secondsRadius - 4));
 
   // The Future and Past remain unchanged...
 
@@ -137,7 +142,7 @@ void draw() {
   pushMatrix();
   textAlign(CENTER);
   fill(255); // Make sure text is fully visible
-  translate(cos(futureS) * secondsRadius, sin(futureS) * secondsRadius);
+  translate(cos(futureS) * secondsRadius + 20, sin(futureS) * secondsRadius);
   rotate(HALF_PI);
   text("FUTURE", 0, 0);
   popMatrix();

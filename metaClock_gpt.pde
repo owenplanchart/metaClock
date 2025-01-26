@@ -26,7 +26,7 @@ float oldSliceAngle = 0;
 void setup() {
   // Use a window during development so you can see console messages.
   // When confident everything works, switch to fullScreen().
-   //size(800, 600);
+  // size(800, 600);
   fullScreen();
 
   f = createFont("TimesNewRomanPSMT", 24);
@@ -70,8 +70,12 @@ void draw() {
         try {
           float distance = float(data.replace(" mm", "")); // Parse distance
           println("distance: " + distance);
-          // Map distance to speedMultiplier (closer = faster)
-          speedMultiplier = map(distance, 100, 2000, 5, 0.5);
+          // Now we invert the logic:
+          //  - Far distance => faster speed => narrower fan
+          //  - Close distance => slower speed => wider fan
+
+          // so distance ~2000 => speed ~5, distance ~100 => speed ~0.5
+          speedMultiplier = map(distance, 100, 2000, 0.5, 5);
           speedMultiplier = constrain(speedMultiplier, 0.5, 5);
 
           // Smooth the sensor distance:
@@ -85,11 +89,12 @@ void draw() {
           }
 
           // Now map the smoothed distance to sliceAngle
-          float newSliceAngle = map(smoothedDistance, 100, 2000, radians(45), radians(0));
+          //  - Far distance => smaller angle (0)
+          //  - Near distance => bigger angle (45)
+          float newSliceAngle = map(smoothedDistance, 100, 2000,  radians(45), radians(0));
           newSliceAngle = constrain(newSliceAngle, 0, radians(45));
           sliceAngle = newSliceAngle;
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
@@ -98,11 +103,16 @@ void draw() {
 
   // If mouse control is active, override speedMultiplier and sliceAngle based on mouseX
   if (mouseControl) {
-    speedMultiplier = map(mouseX, 0, width, 5, 0.5);
+    // For the mouse we do the same logic: left => near, right => far
+    // i.e. left => slower, bigger slice; right => faster, smaller slice.
+
+    float distValue = map(mouseX, 0, width, 100, 2000);
+
+    speedMultiplier = map(distValue, 100, 2000, 0.5, 5);
     speedMultiplier = constrain(speedMultiplier, 0.5, 5);
 
-    float newSliceAngle = map(mouseX, 0, width, radians(0), radians(45));
-    sliceAngle = newSliceAngle;
+    float newSliceAngle = map(distValue, 100, 2000, radians(45), radians(0));
+    sliceAngle = constrain(newSliceAngle, 0, radians(45));
   }
 
   // Calculate deltaTime in seconds
@@ -129,6 +139,7 @@ void draw() {
   float s = map(baseSecond, 0, 60, 0, TWO_PI);
 
   // Offsets for 'FUTURE' and 'PAST' text, based on mouseX or distance
+  // We'll leave these alone but you can invert them if desired.
   float futureOffset = map(mouseX, 0, width, 4, 8);
   float pastOffset   = map(mouseX, 0, width, -4, -6);
 

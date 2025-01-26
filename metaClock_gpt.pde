@@ -99,15 +99,39 @@ void draw() {
   if (sliceAngle > 0) {
     fill(255); // Solid white color for the slice
     noStroke();
-    arc(0, 0, secondsRadius * 2, secondsRadius * 2, arcStart, arcEnd, PIE);
+
+    // Inner and outer radii for the slice
+    float innerRadius = 8; // Start near the center
+    float outerRadius = secondsRadius;    // Match the outer circle boundary
+
+    // Draw the fan-shaped slice with an arc for the outer edge
+    beginShape();
+
+    // Inner edge
+    vertex(cos(arcStart) * innerRadius, sin(arcStart) * innerRadius);
+
+    // Outer arc
+    for (float a = arcStart; a <= arcEnd; a += radians(0.5)) { // Smaller step size for smoother arc
+      vertex(cos(a) * outerRadius, sin(a) * outerRadius);
+    }
+
+    // Inner edge (back to the other side)
+    vertex(cos(arcEnd) * innerRadius, sin(arcEnd) * innerRadius);
+
+    endShape(CLOSE);
   }
 
   // Draw the original seconds hand as a line
-  // Draw the original seconds hand as a shorter line
   stroke(255);
   strokeWeight(8);
-  float lineRadius = secondsRadius - 4; // Make the line slightly shorter to match the outer circle
-  line(0, 0, cos(s) * lineRadius, sin(s) * lineRadius);
+  line(0, 0, cos(s) * (secondsRadius - 8), sin(s) * (secondsRadius - 8));
+
+  // The Future and Past remain unchanged...
+
+
+
+
+
 
   // The Future
   pushMatrix();

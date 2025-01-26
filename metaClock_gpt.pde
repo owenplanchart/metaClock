@@ -47,8 +47,7 @@ void setup() {
     myPort = new Serial(this, portName, 9600);
     mouseControl = false; // Switch to sensor control if the serial port is successfully opened
     println("Sensor connected. Using sensor control.");
-  }
-  catch (Exception e) {
+  } catch (Exception e) {
     println("Sensor not connected. Defaulting to mouse control.");
     mouseControl = true;
   }
@@ -58,7 +57,7 @@ void draw() {
   background(0);
 
   // By default, keep sliceAngle from the previous frame.
-  // (We will update it below if new sensor data arrives or if in mouse mode.)
+  // (We update it if new sensor data arrives or if in mouse mode.)
   sliceAngle = oldSliceAngle;
 
   // Handle data from the serial port only if sensor control is active
@@ -70,12 +69,11 @@ void draw() {
         try {
           float distance = float(data.replace(" mm", "")); // Parse distance
           println("distance: " + distance);
-          // Now we invert the logic:
-          //  - Far distance => faster speed => narrower fan
-          //  - Close distance => slower speed => wider fan
 
-          // so distance ~2000 => speed ~5, distance ~100 => speed ~0.5
-          speedMultiplier = map(distance, 100, 2000, 0.5, 5);
+          // Far distance => faster speed => narrower fan
+          // Close distance => slower speed => wider fan
+          // Let's keep the 1600 range for this example (adjust as needed)
+          speedMultiplier = map(distance, 100, 1600, 0.5, 5);
           speedMultiplier = constrain(speedMultiplier, 0.5, 5);
 
           // Smooth the sensor distance:
@@ -88,11 +86,9 @@ void draw() {
             smoothedDistance = alpha * distance + (1 - alpha) * smoothedDistance;
           }
 
-          // Now map the smoothed distance to sliceAngle
-          //  - Far distance => smaller angle (0)
-          //  - Near distance => bigger angle (45)
-          float newSliceAngle = map(smoothedDistance, 100, 2000,  radians(45), radians(0));
-          newSliceAngle = constrain(newSliceAngle, 0, radians(45));
+          // Map the smoothed distance to sliceAngle, from 80 deg at close to 0 deg at far
+          float newSliceAngle = map(smoothedDistance, 100, 1600, radians(80), radians(0));
+          newSliceAngle = constrain(newSliceAngle, 0, radians(80));
           sliceAngle = newSliceAngle;
         } catch (NumberFormatException e) {
           println("Invalid data: " + data);
@@ -103,16 +99,16 @@ void draw() {
 
   // If mouse control is active, override speedMultiplier and sliceAngle based on mouseX
   if (mouseControl) {
-    // For the mouse we do the same logic: left => near, right => far
-    // i.e. left => slower, bigger slice; right => faster, smaller slice.
-
-    float distValue = map(mouseX, 0, width, 100, 2000);
+    // Reverse the logic for the mouse so that: mouseX = right => big angle (like short distance)
+    // i.e. at x=0 => far (distance=2000), at x=width => near (distance=100)
+    float distValue = map(mouseX, 0, width, 2000, 100);
 
     speedMultiplier = map(distValue, 100, 2000, 0.5, 5);
     speedMultiplier = constrain(speedMultiplier, 0.5, 5);
 
-    float newSliceAngle = map(distValue, 100, 2000, radians(45), radians(0));
-    sliceAngle = constrain(newSliceAngle, 0, radians(45));
+    // Now map it to up to 80 degrees
+    float newSliceAngle = map(distValue, 100, 2000, radians(80), radians(0));
+    sliceAngle = constrain(newSliceAngle, 0, radians(80));
   }
 
   // Calculate deltaTime in seconds
@@ -138,10 +134,12 @@ void draw() {
 
   float s = map(baseSecond, 0, 60, 0, TWO_PI);
 
-  // Offsets for 'FUTURE' and 'PAST' text, based on mouseX or distance
-  // We'll leave these alone but you can invert them if desired.
-  float futureOffset = map(mouseX, 0, width, 4, 8);
-  float pastOffset   = map(mouseX, 0, width, -4, -6);
+  // Instead of using mouseX for offsets, tie them to sliceAngle.
+  // sliceAngle goes [0..80 deg] => let's map that to [0..1] for normalizing.
+  float angleNorm = map(sliceAngle, 0, radians(80), 0, 1);
+  // Then we push FUTURE further out as the fan expands, PAST further out as well.
+  float futureOffset = map(angleNorm, 0, 1, 4, 10);
+  float pastOffset   = map(angleNorm, 0, 1, -4, -8);
 
   float futureS = map((baseSecond + futureOffset + 60) % 60, 0, 60, 0, TWO_PI);
   float pastS   = map((baseSecond + pastOffset   + 60) % 60, 0, 60, 0, TWO_PI);
@@ -176,7 +174,7 @@ void draw() {
   strokeWeight(8);
   line(0, 0, cos(s) * (secondsRadius - 4), sin(s) * (secondsRadius - 4));
 
-  // The Future
+  // The Future: place it using futureS
   pushMatrix();
     textAlign(CENTER);
     fill(255);
@@ -185,7 +183,7 @@ void draw() {
     text("FUTURE", 0, 0);
   popMatrix();
 
-  // The Past
+  // The Past: place it using pastS
   pushMatrix();
     textAlign(CENTER);
     fill(255);

@@ -233,8 +233,17 @@ oldSliceAngle = sliceAngle;
 }
 
 void keyPressed() {
-  // Toggle between mouse and sensor control when 'm' is pressed
   if (key == 'm' || key == 'M') {
+    // If we are about to switch into sensor mode:
+    if (mouseControl == true) {
+      // We were in mouse mode, now toggling to sensor mode
+      if (myPort != null) {
+        myPort.clear();           // Clear any stale data
+      }
+      firstSensorRead = true;      // Next sensor reading updates smoothedDistance immediately
+    }
+    
+    // Now actually switch mode
     mouseControl = !mouseControl;
     println("Mode switched to: " + (mouseControl ? "Mouse Control" : "Sensor Control"));
   }

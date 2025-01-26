@@ -47,7 +47,8 @@ void setup() {
     myPort = new Serial(this, portName, 9600);
     mouseControl = false; // Switch to sensor control if the serial port is successfully opened
     println("Sensor connected. Using sensor control.");
-  } catch (Exception e) {
+  }
+  catch (Exception e) {
     println("Sensor not connected. Defaulting to mouse control.");
     mouseControl = true;
   }
@@ -82,7 +83,7 @@ void draw() {
             firstSensorRead = false;
           } else {
             // alpha = 0.2 => 20% new reading, 80% old reading
-            float alpha = 0.2;
+            float alpha = 0.1;
             smoothedDistance = alpha * distance + (1 - alpha) * smoothedDistance;
           }
 
@@ -90,7 +91,8 @@ void draw() {
           float newSliceAngle = map(smoothedDistance, 100, 1600, radians(80), radians(0));
           newSliceAngle = constrain(newSliceAngle, 0, radians(80));
           sliceAngle = newSliceAngle;
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e) {
           println("Invalid data: " + data);
         }
       }
@@ -144,64 +146,90 @@ void draw() {
   float futureS = map((baseSecond + futureOffset + 60) % 60, 0, 60, 0, TWO_PI);
   float pastS   = map((baseSecond + pastOffset   + 60) % 60, 0, 60, 0, TWO_PI);
 
-  // Draw the expanding pie slice
-  if (sliceAngle > 0) {
-    fill(255);
-    noStroke();
+  // We'll now define a shape where the "inner" chord is always 8px wide (on the inner circle),
+  // and the "outer" arc expands from 0..80 degrees as sliceAngle changes.
 
-    float innerRadius = 8;
-    float outerRadius = secondsRadius;
+  // We do that by choosing a fixed angle for the inner chord so that it's always 8px wide.
+  // The chord length for a circle is 2 * R * sin(angle/2). We want 8px at R=8,
+  // so angle/2 = arcsin(8/(2*8)) = arcsin(0.5) => angle/2=30 deg => angle=60 deg.
 
-    float arcStart = s - sliceAngle / 2;
-    float arcEnd   = s + sliceAngle / 2;
+  float INSIDE_CHORD_ANGLE = radians(60);
+  float insideHalfAngle = INSIDE_CHORD_ANGLE / 2.0;
 
-    beginShape();
-    // Move to the inner edge at arcStart
-    vertex(cos(arcStart) * innerRadius, sin(arcStart) * innerRadius);
+  // We'll only draw the wedge if sliceAngle >= 0, but that is always true.
+  // We still want to show at least the 8px line if sliceAngle=0.
 
-    // Outer arc from arcStart to arcEnd
-    for (float a = arcStart; a <= arcEnd; a += radians(0.5)) {
+  fill(255);
+  noStroke();
+
+  float innerRadius = 6;
+  float outerRadius = secondsRadius;
+
+  // The inside chord is fixed at 60 deg, centered on 's'.
+  float insideStart = s - insideHalfAngle;
+  float insideEnd   = s + insideHalfAngle;
+
+  // The outside arc goes from s - sliceAngle/2 to s + sliceAngle/2.
+  float outsideHalfAngle = sliceAngle / 2.0;
+  float outsideStart = s - outsideHalfAngle;
+  float outsideEnd   = s + outsideHalfAngle;
+
+  beginShape();
+  // 1) Move to the inside chord start
+  vertex(cos(insideStart) * innerRadius, sin(insideStart) * innerRadius);
+
+  // 2) Trace the outer arc
+  if (outsideStart < outsideEnd) {
+    // We'll step in increments of 0.5 degrees for smoothness
+    float step = radians(0.5);
+    for (float a = outsideStart; a <= outsideEnd; a += step) {
       vertex(cos(a) * outerRadius, sin(a) * outerRadius);
     }
-
-    // Move back to the inner edge at arcEnd
-    vertex(cos(arcEnd) * innerRadius, sin(arcEnd) * innerRadius);
-    endShape(CLOSE);
+  } else {
+    // If sliceAngle=0, outsideStart==outsideEnd => no arc,
+    // so just one vertex at that angle, effectively a line
+    vertex(cos(s) * outerRadius, sin(s) * outerRadius);
   }
 
-  // Draw the seconds hand
-  stroke(255);
-  strokeWeight(8);
-  line(0, 0, cos(s) * (secondsRadius - 4), sin(s) * (secondsRadius - 4));
+  // 3) Return to the inside chord end
+  vertex(cos(insideEnd) * innerRadius, sin(insideEnd) * innerRadius);
 
-  // The Future: place it using futureS
-  pushMatrix();
-    textAlign(CENTER);
-    fill(255);
-    translate(cos(futureS) * secondsRadius + 20, sin(futureS) * secondsRadius);
-    rotate(HALF_PI);
-    text("FUTURE", 0, 0);
-  popMatrix();
+  endShape(CLOSE);
 
-  // The Past: place it using pastS
-  pushMatrix();
-    textAlign(CENTER);
-    fill(255);
-    translate(cos(pastS) * secondsRadius, sin(pastS) * secondsRadius);
-    rotate(HALF_PI);
-    text("PAST", 0, 0);
-  popMatrix();
 
-  // Reset transform to draw text on screen
-  resetMatrix();
-  fill(255);
-  textSize(20);
-  textAlign(LEFT);
-  text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 60);
-  text("Mode: " + (mouseControl ? "Mouse Control" : "Sensor Control"), 10, height - 40);
+// Draw the seconds hand
+//stroke(255);
+//strokeWeight(8);
+//line(0, 0, cos(s) * (secondsRadius - 4), sin(s) * (secondsRadius - 4));
 
-  // Finally, store the sliceAngle for next frame so we don't flicker.
-  oldSliceAngle = sliceAngle;
+// The Future: place it using futureS
+pushMatrix();
+textAlign(CENTER);
+fill(255);
+translate(cos(futureS) * secondsRadius + 20, sin(futureS) * secondsRadius);
+rotate(HALF_PI);
+text("FUTURE", 0, 0);
+popMatrix();
+
+// The Past: place it using pastS
+pushMatrix();
+textAlign(CENTER);
+fill(255);
+translate(cos(pastS) * secondsRadius, sin(pastS) * secondsRadius);
+rotate(HALF_PI);
+text("PAST", 0, 0);
+popMatrix();
+
+// Reset transform to draw text on screen
+resetMatrix();
+fill(255);
+textSize(20);
+textAlign(LEFT);
+text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 60);
+text("Mode: " + (mouseControl ? "Mouse Control" : "Sensor Control"), 10, height - 40);
+
+// Finally, store the sliceAngle for next frame so we don't flicker.
+oldSliceAngle = sliceAngle;
 }
 
 void keyPressed() {

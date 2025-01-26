@@ -5,42 +5,63 @@ Serial myPort;  // Serial port for Arduino
 int cx, cy;
 float secondsRadius;
 PFont f;
+
 float baseSecond = 0;  // Tracks the current second with speed adjustments
 float speedMultiplier = 1;  // Speed factor for the second hand
-int lastTime;  // Tracks the time of the previous frame
+
+int lastTime;    // Tracks the time of the previous frame (millis)
 int lastSecond = 0; // Tracks the last integer second for sound triggering
+
 SoundFile tickSound; // Sound file for the clock tick
 boolean mouseControl = true; // Track whether mouse control is active (default)
 
+// We'll keep a global smoothed distance for sensor data.
+float smoothedDistance = 1500;   // starting guess if you want.
+boolean firstSensorRead = true; // track whether we set it once
+
+// We'll also keep the sliceAngle across frames.
+float sliceAngle = 0;
+float oldSliceAngle = 0;
+
 void setup() {
+  // Use a window during development so you can see console messages.
+  // When confident everything works, switch to fullScreen().
+   //size(800, 600);
   fullScreen();
+
   f = createFont("TimesNewRomanPSMT", 24);
   textFont(f);
+
   cx = width / 2;
   cy = height / 2;
   secondsRadius = 150;
-  lastTime = millis();  // Initialize the lastTime variable
+  lastTime = millis();  // Initialize the lastTime
 
   // Load the clock tick sound
   tickSound = new SoundFile(this, "ClockTick.wav");
 
   // Attempt to initialize the serial port
   try {
-    String portName = "/dev/cu.usbserial-01D17D99"; // Replace with the appropriate port
-    myPort = new Serial(this, portName, 9600); // Adjust baud rate to match Arduino
+    // Replace with the correct port, or use Serial.list() to see your options
+    String portName = "/dev/cu.usbserial-01D17D99";
+    myPort = new Serial(this, portName, 9600);
     mouseControl = false; // Switch to sensor control if the serial port is successfully opened
     println("Sensor connected. Using sensor control.");
   }
   catch (Exception e) {
     println("Sensor not connected. Defaulting to mouse control.");
-    mouseControl = true; // Default to mouse control if sensor connection fails
+    mouseControl = true;
   }
 }
 
 void draw() {
   background(0);
 
-  // Handle data from the serial port only if sensor control is active and the serial port is initialized
+  // By default, keep sliceAngle from the previous frame.
+  // (We will update it below if new sensor data arrives or if in mouse mode.)
+  sliceAngle = oldSliceAngle;
+
+  // Handle data from the serial port only if sensor control is active
   if (!mouseControl && myPort != null && myPort.available() > 0) {
     String data = myPort.readStringUntil('\n'); // Read until newline
     if (data != null) {
@@ -48,9 +69,25 @@ void draw() {
       if (data.endsWith("mm")) { // Check if valid data
         try {
           float distance = float(data.replace(" mm", "")); // Parse distance
-          // Map distance to speedMultiplier (e.g., closer = faster)
-          speedMultiplier = map(distance, 100, 2000, 5, 0.5); // Adjust range as needed
-          speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
+          println("distance: " + distance);
+          // Map distance to speedMultiplier (closer = faster)
+          speedMultiplier = map(distance, 100, 2000, 5, 0.5);
+          speedMultiplier = constrain(speedMultiplier, 0.5, 5);
+
+          // Smooth the sensor distance:
+          if (firstSensorRead) {
+            smoothedDistance = distance; // initialize
+            firstSensorRead = false;
+          } else {
+            // alpha = 0.2 => 20% new reading, 80% old reading
+            float alpha = 0.2;
+            smoothedDistance = alpha * distance + (1 - alpha) * smoothedDistance;
+          }
+
+          // Now map the smoothed distance to sliceAngle
+          float newSliceAngle = map(smoothedDistance, 100, 2000, radians(45), radians(0));
+          newSliceAngle = constrain(newSliceAngle, 0, radians(45));
+          sliceAngle = newSliceAngle;
         }
         catch (NumberFormatException e) {
           println("Invalid data: " + data);
@@ -59,14 +96,13 @@ void draw() {
     }
   }
 
-  // If mouse control is active, map mouseX to speedMultiplier and slice thickness
-  float sliceAngle = 0; // The angle of the slice (starts as a line)
+  // If mouse control is active, override speedMultiplier and sliceAngle based on mouseX
   if (mouseControl) {
-    speedMultiplier = map(mouseX, 0, width, 5, 0.5); // Inverted range
-    speedMultiplier = constrain(speedMultiplier, 0.5, 5); // Clamp value
+    speedMultiplier = map(mouseX, 0, width, 5, 0.5);
+    speedMultiplier = constrain(speedMultiplier, 0.5, 5);
 
-    // Map mouseX to slice angle (0 for a line, up to 45 degrees)
-    sliceAngle = map(mouseX, 0, width, radians(0), radians(45));
+    float newSliceAngle = map(mouseX, 0, width, radians(0), radians(45));
+    sliceAngle = newSliceAngle;
   }
 
   // Calculate deltaTime in seconds
@@ -74,98 +110,90 @@ void draw() {
   float deltaTime = (currentTime - lastTime) / 1000.0;
   lastTime = currentTime;
 
-  // Update the baseSecond value based on the speed multiplier
+  // Update baseSecond based on the speed multiplier
   baseSecond += speedMultiplier * deltaTime;
-  baseSecond %= 60; // Keep seconds within the range [0, 60)
+  baseSecond %= 60; // keep seconds in [0, 60)
 
-  // Trigger sound when the second hand moves a full unit
+  // Trigger sound when the second hand crosses an integer second
   int currentSecond = floor(baseSecond);
   if (currentSecond != lastSecond) {
-    tickSound.play(); // Play the tick sound
+    tickSound.play();
     lastSecond = currentSecond;
   }
 
+  // Draw clock elements
   translate(cx, cy);
   scale(2.5);
   rotate(-HALF_PI);
 
-  // Map seconds to angles
   float s = map(baseSecond, 0, 60, 0, TWO_PI);
- // Adjust future and past angles based on mouse position
-  float futureOffset = map(mouseX, 0, width, 4, 8); // Varies between +4 and +8
-  float pastOffset = map(mouseX, 0, width, -4, -6); // Varies between -6 and -4
 
-  float futureS = map((baseSecond + futureOffset + 60) % 60, 0, 60, 0, TWO_PI); // Ensure valid range
-  float pastS = map((baseSecond + pastOffset + 60) % 60, 0, 60, 0, TWO_PI);   // Ensure valid range
+  // Offsets for 'FUTURE' and 'PAST' text, based on mouseX or distance
+  float futureOffset = map(mouseX, 0, width, 4, 8);
+  float pastOffset   = map(mouseX, 0, width, -4, -6);
+
+  float futureS = map((baseSecond + futureOffset + 60) % 60, 0, 60, 0, TWO_PI);
+  float pastS   = map((baseSecond + pastOffset   + 60) % 60, 0, 60, 0, TWO_PI);
 
   // Draw the expanding pie slice
-  float arcStart = s - sliceAngle / 2; // Start angle of the slice
-  float arcEnd = s + sliceAngle / 2;   // End angle of the slice
   if (sliceAngle > 0) {
-    fill(255); // Solid white color for the slice
+    fill(255);
     noStroke();
 
-    // Inner and outer radii for the slice
-    float innerRadius = 8; // Start near the center
-    float outerRadius = secondsRadius;    // Match the outer circle boundary
+    float innerRadius = 8;
+    float outerRadius = secondsRadius;
 
-    // Draw the fan-shaped slice with an arc for the outer edge
+    float arcStart = s - sliceAngle / 2;
+    float arcEnd   = s + sliceAngle / 2;
+
     beginShape();
-
-    // Inner edge
+    // Move to the inner edge at arcStart
     vertex(cos(arcStart) * innerRadius, sin(arcStart) * innerRadius);
 
-    // Outer arc
-    for (float a = arcStart; a <= arcEnd; a += radians(0.5)) { // Smaller step size for smoother arc
+    // Outer arc from arcStart to arcEnd
+    for (float a = arcStart; a <= arcEnd; a += radians(0.5)) {
       vertex(cos(a) * outerRadius, sin(a) * outerRadius);
     }
 
-    // Inner edge (back to the other side)
+    // Move back to the inner edge at arcEnd
     vertex(cos(arcEnd) * innerRadius, sin(arcEnd) * innerRadius);
-
     endShape(CLOSE);
   }
 
-  // Draw the original seconds hand as a line
+  // Draw the seconds hand
   stroke(255);
   strokeWeight(8);
   line(0, 0, cos(s) * (secondsRadius - 4), sin(s) * (secondsRadius - 4));
 
-  // The Future and Past remain unchanged...
-
-
-
-
-
-
   // The Future
   pushMatrix();
-  textAlign(CENTER);
-  fill(255); // Make sure text is fully visible
-  translate(cos(futureS) * secondsRadius + 20, sin(futureS) * secondsRadius);
-  rotate(HALF_PI);
-  text("FUTURE", 0, 0);
+    textAlign(CENTER);
+    fill(255);
+    translate(cos(futureS) * secondsRadius + 20, sin(futureS) * secondsRadius);
+    rotate(HALF_PI);
+    text("FUTURE", 0, 0);
   popMatrix();
 
   // The Past
   pushMatrix();
-  textAlign(CENTER);
-  fill(255); // Make sure text is fully visible
-  translate(cos(pastS) * secondsRadius, sin(pastS) * secondsRadius);
-  rotate(HALF_PI);
-  text("PAST", 0, 0);
+    textAlign(CENTER);
+    fill(255);
+    translate(cos(pastS) * secondsRadius, sin(pastS) * secondsRadius);
+    rotate(HALF_PI);
+    text("PAST", 0, 0);
   popMatrix();
 
-  // Display current speed multiplier and mode
+  // Reset transform to draw text on screen
   resetMatrix();
   fill(255);
-  textAlign(LEFT);
   textSize(20);
+  textAlign(LEFT);
   text("Speed Multiplier: " + nf(speedMultiplier, 1, 2) + "x", 10, height - 60);
   text("Mode: " + (mouseControl ? "Mouse Control" : "Sensor Control"), 10, height - 40);
+
+  // Finally, store the sliceAngle for next frame so we don't flicker.
+  oldSliceAngle = sliceAngle;
 }
-
-
 
 void keyPressed() {
   // Toggle between mouse and sensor control when 'm' is pressed
